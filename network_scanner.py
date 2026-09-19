@@ -79,6 +79,49 @@ def scan_port(host: str, port: int, timeout: float = 1.0) -> Optional[Dict]:
     except socket.error:
         return None
 
+def scan_host(host: str, ports: List[int], timeout: float = 1.0) -> Dict:
+    """
+    Scan all specified ports on a single host.
+
+    Args:
+        host: Target host IP address
+        ports: List of port numbers to scan
+        timeout: Connection timeout in seconds
+
+    Returns:
+        Dictionary containing host information and scan results
+    """
+    print(f"Scanning host: {host}")
+
+    # First check if host is alive
+    if not is_host_alive(host, timeout):
+        return {
+            "host": host,
+            "alive": False,
+            "ports": []
+        }
+
+    # Scan ports using thread pool for efficiency
+    open_ports = []
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        future_to_port = {
+            executor.submit(scan_port, host, port, timeout): port
+            for port in ports
+        }
+
+        for future in as_completed(future_to_port):
+            result = future.result()
+            if result:
+                open_ports.append(result)
+
+    # Sort results by port number
+    open_ports.sort(key=lambda x: x["port"])
+
+    return {
+        "host": host,
+        "alive": True,
+        "ports": open_ports
+    }
 
 
 if __name__ == "__main__":
