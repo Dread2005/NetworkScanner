@@ -203,5 +203,99 @@ def format_output_text(results: List[Dict]) -> str:
 
     return "\n".join(output)
 
+def main():
+    """Main function to handle command line arguments and execute scan."""
+    parser = argparse.ArgumentParser(
+        description="Network Scanner - Scan networks for live hosts, open ports, and service banners",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python network_scanner.py -n 192.168.1.0/24 -p 80,443,22
+  python network_scanner.py -n 10.0.0.1-10.0.0.10 -p 1-1000 --timeout 2.0
+  python network_scanner.py -n 192.168.1.100 -p 80,443 --output json
+        """
+    )
+
+    parser.add_argument(
+        "-n", "--network",
+        required=True,
+        help="Network to scan (CIDR notation, IP range, or single IP)"
+    )
+
+    parser.add_argument(
+        "-p", "--ports",
+        required=True,
+        help="Ports to scan (comma-separated or range, e.g., '80,443,22' or '1-1000')"
+    )
+
+    parser.add_argument(
+        "-t", "--timeout",
+        type=float,
+        default=1.0,
+        help="Connection timeout in seconds (default: 1.0)"
+    )
+
+    parser.add_argument(
+        "-o", "--output",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)"
+    )
+
+    parser.add_argument(
+        "--output-file",
+        help="Save results to specified file"
+    )
+
+    args = parser.parse_args()
+
+    # Parse ports
+    ports = []
+    try:
+        if '-' in args.ports and ',' not in args.ports:
+            # Port range like 1-1000
+            start, end = map(int, args.ports.split('-'))
+            ports = list(range(start, end + 1))
+        else:
+            # Comma-separated ports
+            ports = [int(p.strip()) for p in args.ports.split(',')]
+    except ValueError:
+        print("Error: Invalid port format. Use comma-separated values or range (e.g., '80,443' or '1-1000')")
+        sys.exit(1)
+
+    # Validate timeout
+    if args.timeout <= 0:
+        print("Error: Timeout must be positive")
+        sys.exit(1)
+
+    # Perform scan
+    try:
+        results = scan_network(args.network, ports, args.timeout)
+    except KeyboardInterrupt:
+        print("\nScan interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error during scan: {e}")
+        sys.exit(1)
+
+    # Format and output results
+    if args.output == "json":
+        output_data = json.dumps(results, indent=2)
+    else:
+        output_data = format_output_text(results)
+
+    # Output to file or stdout
+    if args.output_file:
+        try:
+            with open(args.output_file, 'w') as f:
+                f.write(output_data)
+            print(f"Results saved to {args.output_file}")
+        except IOError as e:
+            print(f"Error writing to file: {e}")
+            sys.exit(1)
+    else:
+        print(output_data)
+git
+
 if __name__ == "__main__":
     main()
